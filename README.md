@@ -74,20 +74,46 @@ nano recursive/api_key.env
 ```
 
 
-2. **Run the engine directly**:
+2. **Configure models** (optional but recommended):
+
+WriteHERE now supports flexible model configuration through `model_config.yaml`. You can:
+- Set default models for story and report generation
+- Configure selector and summarizer models for report mode
+- Use predefined presets (premium, balanced, economy, gemini, claude)
+- Or continue to specify models via command line
+
+See [MODEL_CONFIG.md](MODEL_CONFIG.md) for detailed configuration guide.
+
+3. **Run the engine**:
+
+You can run the engine with or without specifying a model:
+
 ```bash
 cd recursive
-python engine.py --filename <input_file> --output-filename <output_file> --done-flag-file <done_file> --model <model_name> --mode <story|report>
+
+# Use default models from config file
+python engine.py --filename <input_file> --output-filename <output_file> --mode <story|report>
+
+# Or specify a model (overrides config)
+python engine.py --filename <input_file> --output-filename <output_file> --model <model_name> --mode <story|report>
+
+# Or use a preset
+python engine.py --filename <input_file> --output-filename <output_file> --preset <preset_name> --mode <story|report>
 ```
 
-Example for generating a story:
+Example for generating a story with default model:
 ```bash
-python engine.py --filename ../test_data/meta_fiction.jsonl --output-filename ./project/story/output.jsonl --done-flag-file ./project/story/done.txt --model gpt-4o --mode story
+python engine.py --filename ../test_data/meta_fiction.jsonl --output-filename ./project/story/output.jsonl --mode story
 ```
 
-Example for generating a report:
+Example for generating a story with specific model:
 ```bash
-python engine.py --filename ../test_data/qa_test.jsonl --output-filename ./project/qa/result.jsonl --done-flag-file ./project/qa/done.txt --model claude-3-sonnet --mode report
+python engine.py --filename ../test_data/meta_fiction.jsonl --output-filename ./project/story/output.jsonl --model gpt-4o --mode story
+```
+
+Example for generating a report with the "premium" preset:
+```bash
+python engine.py --filename ../test_data/qa_test.jsonl --output-filename ./project/qa/result.jsonl --preset premium --mode report --engine-backend serpapi
 ```
 
 #### Running With Visualization Interface
