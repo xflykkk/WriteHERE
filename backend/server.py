@@ -925,6 +925,74 @@ def api_ping():
         "version": "1.0.0"
     })
 
+@app.route('/api/available-models', methods=['GET'])
+def api_available_models():
+    """Get list of available models from model_config.yaml"""
+    try:
+        # Import here to avoid circular dependency
+        import sys
+        import os
+
+        # Add recursive directory to path
+        recursive_dir = os.path.join(os.path.dirname(__file__), '../recursive')
+        if recursive_dir not in sys.path:
+            sys.path.insert(0, recursive_dir)
+
+        from model_config_loader import get_model_config_loader
+
+        loader = get_model_config_loader()
+
+        # Get all model names
+        model_names = loader.list_available_models()
+
+        # Build model list with metadata
+        models = []
+        for model_name in model_names:
+            model_config = loader.get_model_config(model_name)
+            models.append({
+                'value': model_name,
+                'label': model_config.get('display_name', model_name),
+                'provider': model_config.get('provider', 'unknown'),
+                'supports_vision': model_config.get('supports_vision', False)
+            })
+
+        # Also get defaults and presets
+        defaults = {
+            'story_model': loader.get_default_model('story'),
+            'report_model': loader.get_default_model('report'),
+            'selector_model': loader.get_selector_model(),
+            'summarizer_model': loader.get_summarizer_model()
+        }
+
+        presets = loader.list_available_presets()
+
+        return jsonify({
+            'status': 'ok',
+            'models': models,
+            'defaults': defaults,
+            'presets': presets
+        })
+
+    except Exception as e:
+        print(f"Error loading model config: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Return default models if config loading fails
+        return jsonify({
+            'status': 'ok',
+            'models': [
+                {'value': 'gpt-4o', 'label': 'GPT-4o', 'provider': 'openai'},
+                {'value': 'gpt-4o-mini', 'label': 'GPT-4o Mini', 'provider': 'openai'},
+                {'value': 'claude-3-7-sonnet-20250219', 'label': 'Claude 3.7 Sonnet', 'provider': 'anthropic'},
+                {'value': 'claude-3-5-sonnet-20241022', 'label': 'Claude 3.5 Sonnet', 'provider': 'anthropic'}
+            ],
+            'defaults': {
+                'story_model': 'gpt-4o',
+                'report_model': 'gpt-4o'
+            },
+            'presets': []
+        })
+
 def monitor_task_progress(task_id, nodes_dir):
     """
     Monitor task progress and send updates via WebSocket

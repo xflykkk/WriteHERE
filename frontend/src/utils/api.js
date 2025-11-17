@@ -34,6 +34,34 @@ export const pingAPI = async () => {
 };
 
 /**
+ * Fetches available models from model_config.yaml
+ * @returns {Promise} - Promise that resolves with available models, defaults, and presets
+ */
+export const getAvailableModels = async () => {
+  try {
+    const response = await apiClient.get('/available-models');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching available models:', error);
+    // Return fallback models if API fails
+    return {
+      status: 'ok',
+      models: [
+        { value: 'gpt-4o', label: 'GPT-4o', provider: 'openai' },
+        { value: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openai' },
+        { value: 'claude-3-7-sonnet-20250219', label: 'Claude 3.7 Sonnet', provider: 'anthropic' },
+        { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet', provider: 'anthropic' }
+      ],
+      defaults: {
+        story_model: 'gpt-4o',
+        report_model: 'gpt-4o'
+      },
+      presets: []
+    };
+  }
+};
+
+/**
  * Generates a story using the heterogeneous recursive planning engine
  * @param {Object} params - Generation parameters
  * @param {string} params.prompt - The story prompt

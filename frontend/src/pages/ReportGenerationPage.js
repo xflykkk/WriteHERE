@@ -33,17 +33,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import InfoIcon from '@mui/icons-material/Info';
-import { generateReport, pingAPI } from '../utils/api';
+import { generateReport, pingAPI, getAvailableModels } from '../utils/api';
 import HistoryPanel from '../components/HistoryPanel';
-
-// Recommended model options
-const commonModels = [
-  { label: 'Claude 3.7 Sonnet (Recommended)', value: 'claude-3-7-sonnet-20250219' },
-  { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-  { label: 'GPT-4o', value: 'gpt-4o' },
-  { label: 'Gemini 2.5 Pro Exp', value: 'gemini-2.5-pro-exp-03-25' },
-  { label: 'Gemini 2.5 Pro Preview', value: 'gemini-2.5-pro-preview-03-25' },
-];
 
 // Example prompts for report generation
 const examplePrompts = [
@@ -54,7 +45,9 @@ const examplePrompts = [
 
 const ReportGenerationPage = () => {
   const [prompt, setPrompt] = useState('');
-  const [model, setModel] = useState('claude-3-5-sonnet-20241022');
+  const [availableModels, setAvailableModels] = useState([]);
+  const [model, setModel] = useState('');
+  const [defaultModel, setDefaultModel] = useState('');
   const [searchEngine, setSearchEngine] = useState('google');
   const [enableSearch, setEnableSearch] = useState(true);
   const [apiKeys, setApiKeys] = useState({
@@ -99,8 +92,36 @@ const ReportGenerationPage = () => {
         setError('Cannot connect to the backend server. Please make sure it is running at http://localhost:' + (process.env.REACT_APP_BACKEND_PORT || '5001') + '.');
       }
     }
-    
+
     checkAPIConnection();
+  }, []);
+
+  // Fetch available models from API
+  useEffect(() => {
+    async function fetchAvailableModels() {
+      try {
+        const data = await getAvailableModels();
+        if (data.models && data.models.length > 0) {
+          setAvailableModels(data.models);
+          // Set default model from config
+          if (data.defaults && data.defaults.report_model) {
+            setDefaultModel(data.defaults.report_model);
+            setModel(data.defaults.report_model);
+          } else {
+            setModel(data.models[0].value);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch available models:', err);
+        const fallbackModels = [
+          { label: 'GPT-4o', value: 'gpt-4o' },
+          { label: 'Claude 3.7 Sonnet', value: 'claude-3-7-sonnet-20250219' }
+        ];
+        setAvailableModels(fallbackModels);
+        setModel('gpt-4o');
+      }
+    }
+    fetchAvailableModels();
   }, []);
 
   const handleSubmit = async (e) => {
@@ -244,7 +265,7 @@ const ReportGenerationPage = () => {
             <Grid item xs={12} md={4}>
               <Autocomplete
                 freeSolo
-                options={commonModels}
+                options={availableModels}
                 getOptionLabel={(option) => {
                   if (typeof option === 'string') {
                     return option;
