@@ -10,6 +10,9 @@ llm.py.bak
 *.egg-info/
 backend/results/
 
+# Model configuration with API keys
+recursive/model_config.yaml
+
 # Node.js
 node_modules/
 frontend/node_modules/

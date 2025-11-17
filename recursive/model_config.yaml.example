@@ -1,0 +1,246 @@
+# Model Configuration for WriteHERE
+# This file defines model configurations for different tasks
+#
+# IMPORTANT: Copy this file to model_config.yaml and fill in your API keys
+# cp model_config.yaml.example model_config.yaml
+
+# Default models for different modes
+defaults:
+  story_model: "qwen3-next-80b-a3b-instruct"       # Default model for story generation
+  report_model: "qwen3-next-80b-a3b-instruct"      # Default model for report generation
+  selector_model: "qwen3-30b-a3b-instruct-2507-ali"  # Model for selecting relevant search results
+  summarizer_model: "gemini-2.5-flash-lite"        # Model for summarizing search results
+
+# Model definitions with detailed configurations
+models:
+  # OpenAI GPT-4o
+  gpt-4o:
+    provider: "openai"
+    display_name: "GPT-4o"
+    temperature:
+      composition: 0.3    # For writing tasks
+      reasoning: 0.3      # For thinking tasks
+      planning: 0.1       # For planning and atomic tasks
+    max_tokens: 4096
+    supports_vision: true
+
+  # OpenAI GPT-4o-mini
+  gpt-4o-mini:
+    provider: "openai"
+    display_name: "GPT-4o Mini"
+    temperature:
+      composition: 0.3
+      reasoning: 0.3
+      planning: 0.1
+    max_tokens: 4096
+    supports_vision: true
+
+  # OpenAI o1
+  o1:
+    provider: "openai"
+    display_name: "OpenAI o1"
+    temperature:
+      composition: 1.0    # o1 models have fixed temperature
+      reasoning: 1.0
+      planning: 1.0
+    max_tokens: 8192
+    supports_vision: false
+
+  # Anthropic Claude 3.5 Sonnet
+  claude-3-5-sonnet-20241022:
+    provider: "anthropic"
+    display_name: "Claude 3.5 Sonnet"
+    temperature:
+      composition: 0.3
+      reasoning: 0.3
+      planning: 0.1
+    max_tokens: 8192
+    supports_vision: true
+
+  # Anthropic Claude 3.7 Sonnet
+  claude-3-7-sonnet-20250219:
+    provider: "anthropic"
+    display_name: "Claude 3.7 Sonnet"
+    temperature:
+      composition: 0.3
+      reasoning: 0.3
+      planning: 0.1
+    max_tokens: 8192
+    supports_vision: true
+
+  # Google Gemini 2.5 Pro
+  gemini-2.5-pro-preview-03-25:
+    provider: "gemini"
+    display_name: "Gemini 2.5 Pro Preview"
+    temperature:
+      composition: 0.3
+      reasoning: 0.3
+      planning: 0.1
+    max_tokens: 8192
+    supports_vision: true
+
+  # Google Gemini 2.0 Flash
+  gemini-2.0-flash:
+    provider: "gemini"
+    display_name: "Gemini 2.0 Flash"
+    temperature:
+      composition: 0.3
+      reasoning: 0.3
+      planning: 0.1
+    max_tokens: 8192
+    supports_vision: true
+
+  # OpenRouter Google Gemini (via OpenRouter)
+  google/gemini-2.5-pro-preview-03-25:
+    provider: "openrouter"
+    display_name: "Gemini 2.5 Pro (via OpenRouter)"
+    temperature:
+      composition: 0.3
+      reasoning: 0.3
+      planning: 0.1
+    max_tokens: 8192
+    supports_vision: true
+
+  # ===== LiteLLM Models (https://litellm.zeabur.app) =====
+  # Production models - High quality, reasonable speed
+
+  # Qwen3 Next 80B - Primary production model
+  qwen3-next-80b-a3b-instruct:
+    provider: "litellm"
+    display_name: "Qwen3 Next 80B"
+    temperature:
+      composition: 0.5
+      reasoning: 0.5
+      planning: 0.3
+    max_tokens: 8192
+    supports_vision: false
+    base_url: "https://litellm.zeabur.app/v1"
+    api_key: "YOUR_LITELLM_API_KEY_HERE"  # Replace with your actual API key
+    description: "80B parameter model, excellent for complex reasoning and writing"
+
+  # Grok 4 Fast - Alternative production model
+  grok-4-fast:
+    provider: "litellm"
+    display_name: "Grok 4 Fast"
+    temperature:
+      composition: 0.5
+      reasoning: 0.5
+      planning: 0.3
+    max_tokens: 8192
+    supports_vision: false
+    base_url: "https://litellm.zeabur.app/v1"
+    api_key: "YOUR_LITELLM_API_KEY_HERE"  # Replace with your actual API key
+    description: "Fast production model with strong performance"
+
+  # Fast testing models - Quick iteration and development
+
+  # Qwen3 30B Alibaba - Fast testing model
+  qwen3-30b-a3b-instruct-2507-ali:
+    provider: "litellm"
+    display_name: "Qwen3 30B (Alibaba)"
+    temperature:
+      composition: 0.5
+      reasoning: 0.5
+      planning: 0.3
+    max_tokens: 4096
+    supports_vision: false
+    base_url: "https://litellm.zeabur.app/v1"
+    api_key: "YOUR_LITELLM_API_KEY_HERE"  # Replace with your actual API key
+    description: "30B fast model on Alibaba Cloud, great for testing"
+
+  # Gemini 2.5 Flash Lite - Ultra-fast model
+  gemini-2.5-flash-lite:
+    provider: "litellm"
+    display_name: "Gemini 2.5 Flash Lite"
+    temperature:
+      composition: 0.5
+      reasoning: 0.5
+      planning: 0.3
+    max_tokens: 8192
+    supports_vision: true
+    base_url: "https://litellm.zeabur.app/v1"
+    api_key: "YOUR_LITELLM_API_KEY_HERE"  # Replace with your actual API key
+    description: "Ultra-fast Google model, excellent for quick tasks"
+
+# Predefined model sets for different use cases
+presets:
+  # ===== LiteLLM Presets (Recommended) =====
+
+  # LiteLLM Production - Best quality via LiteLLM
+  litellm_production:
+    story_model: "qwen3-next-80b-a3b-instruct"
+    report_model: "qwen3-next-80b-a3b-instruct"
+    selector_model: "qwen3-30b-a3b-instruct-2507-ali"
+    summarizer_model: "gemini-2.5-flash-lite"
+
+  # LiteLLM Fast - Quick testing and development
+  litellm_fast:
+    story_model: "qwen3-30b-a3b-instruct-2507-ali"
+    report_model: "qwen3-30b-a3b-instruct-2507-ali"
+    selector_model: "gemini-2.5-flash-lite"
+    summarizer_model: "gemini-2.5-flash-lite"
+
+  # LiteLLM Mixed - Balance quality and speed
+  litellm_balanced:
+    story_model: "qwen3-next-80b-a3b-instruct"
+    report_model: "grok-4-fast"
+    selector_model: "qwen3-30b-a3b-instruct-2507-ali"
+    summarizer_model: "gemini-2.5-flash-lite"
+
+  # ===== Original Presets =====
+
+  # High quality, slower, more expensive
+  premium:
+    story_model: "claude-3-7-sonnet-20250219"
+    report_model: "gpt-4o"
+    selector_model: "gpt-4o-mini"
+    summarizer_model: "gpt-4o-mini"
+
+  # Balanced quality and cost
+  balanced:
+    story_model: "gpt-4o"
+    report_model: "gpt-4o"
+    selector_model: "gpt-4o-mini"
+    summarizer_model: "gpt-4o-mini"
+
+  # Fast and economical
+  economy:
+    story_model: "gpt-4o-mini"
+    report_model: "gpt-4o-mini"
+    selector_model: "gpt-4o-mini"
+    summarizer_model: "gpt-4o-mini"
+
+  # Google Gemini focused
+  gemini:
+    story_model: "gemini-2.5-pro-preview-03-25"
+    report_model: "gemini-2.5-pro-preview-03-25"
+    selector_model: "gemini-2.0-flash"
+    summarizer_model: "gemini-2.0-flash"
+
+  # Claude focused
+  claude:
+    story_model: "claude-3-7-sonnet-20250219"
+    report_model: "claude-3-5-sonnet-20241022"
+    selector_model: "gpt-4o-mini"
+    summarizer_model: "gpt-4o-mini"
+
+# Advanced settings
+advanced:
+  # Enable model fallback on error
+  enable_fallback: true
+
+  # Fallback model chain (used if enable_fallback is true)
+  # Starts with LiteLLM models, falls back to commercial APIs if needed
+  fallback_chain:
+    - "qwen3-next-80b-a3b-instruct"      # LiteLLM primary
+    - "grok-4-fast"                       # LiteLLM alternative
+    - "qwen3-30b-a3b-instruct-2507-ali"   # LiteLLM fast
+    - "gpt-4o"                            # Commercial fallback
+    - "claude-3-5-sonnet-20241022"        # Commercial fallback
+    - "gpt-4o-mini"                       # Final fallback
+
+  # Max retries for API calls
+  max_retries: 3
+
+  # Timeout for API calls (seconds)
+  timeout: 120
