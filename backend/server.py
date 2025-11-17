@@ -129,12 +129,14 @@ def run_story_generation(task_id, prompt, model, api_keys):
     
     # Create a script to run the engine with the appropriate environment
     script_path = os.path.join(task_dir, 'run.sh')
+    # Build model argument - only include if model is specified
+    model_arg = f"--model {model}" if model and model.strip() else ""
     with open(script_path, 'w') as f:
         f.write(f"""#!/bin/bash
         cd {os.path.abspath(os.path.join(os.path.dirname(__file__), '../recursive'))}
         source {env_file}
         export TASK_ENV_FILE={env_file}
-        python engine.py --filename {input_file} --output-filename {output_file} --done-flag-file {done_file} --model {model} --mode story --nodes-json-file {nodes_file}
+        python engine.py --filename {input_file} --output-filename {output_file} --done-flag-file {done_file} {model_arg} --mode story --nodes-json-file {nodes_file}
         """)
     
     os.chmod(script_path, 0o755)
@@ -223,13 +225,15 @@ def run_report_generation(task_id, prompt, model, enable_search, search_engine, 
     # Create a script to run the engine with the appropriate environment
     script_path = os.path.join(task_dir, 'run.sh')
     engine_backend = search_engine if enable_search else "none"
-    
+    # Build model argument - only include if model is specified
+    model_arg = f"--model {model}" if model and model.strip() else ""
+
     with open(script_path, 'w') as f:
         f.write(f"""#!/bin/bash
         cd {os.path.abspath(os.path.join(os.path.dirname(__file__), '../recursive'))}
         source {env_file}
         export TASK_ENV_FILE={env_file}
-        python engine.py --filename {input_file} --output-filename {output_file} --done-flag-file {done_file} --model {model} --engine-backend {engine_backend} --mode report --nodes-json-file {nodes_file}
+        python engine.py --filename {input_file} --output-filename {output_file} --done-flag-file {done_file} {model_arg} --engine-backend {engine_backend} --mode report --nodes-json-file {nodes_file}
         """)
     
     os.chmod(script_path, 0o755)

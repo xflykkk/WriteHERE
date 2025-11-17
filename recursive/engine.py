@@ -1,7 +1,7 @@
 #coding:utf8
 
 from collections import defaultdict, deque
-from typing import List, Dict
+from typing import List, Dict, Optional
 from recursive.graph import TaskStatus, RegularDummyNode, NodeType
 from recursive.utils.display import display_graph, display_plan
 from recursive.agent.proxy import AgentProxy
@@ -18,6 +18,7 @@ from recursive.cache import Cache
 from recursive.utils.get_index import get_report_with_ref
 from datetime import datetime
 import os
+from recursive.model_config_loader import get_model_config_loader
     
     
 class GraphRunEngine:
@@ -187,9 +188,19 @@ def story_writing(input_filename,
                   start,
                   end,
                   done_flag_file,
-                  global_use_model,
+                  global_use_model: Optional[str] = None,
                   nodes_json_file=None):
-    
+
+    # Load model configuration
+    model_config = get_model_config_loader()
+
+    # Use model from parameter if provided, otherwise use default from config
+    if global_use_model is None:
+        global_use_model = model_config.get_default_model(mode="story")
+        logger.info(f"Using default story model from config: {global_use_model}")
+    else:
+        logger.info(f"Using specified model: {global_use_model}")
+
     config = {
         "language": "en", 
         "action_mapping": {
@@ -356,10 +367,36 @@ def report_writing(input_filename,
                    start,
                    end,
                    done_flag_file,
-                   global_use_model,
-                   engine_backend,
+                   global_use_model: Optional[str] = None,
+                   engine_backend="serpapi",
                    nodes_json_file=None,
-                   today_date=None):
+                   today_date=None,
+                   selector_model: Optional[str] = None,
+                   summarizer_model: Optional[str] = None):
+
+    # Load model configuration
+    model_config = get_model_config_loader()
+
+    # Use model from parameter if provided, otherwise use default from config
+    if global_use_model is None:
+        global_use_model = model_config.get_default_model(mode="report")
+        logger.info(f"Using default report model from config: {global_use_model}")
+    else:
+        logger.info(f"Using specified model: {global_use_model}")
+
+    # Use selector/summarizer models from parameters or config
+    if selector_model is None:
+        selector_model = model_config.get_selector_model()
+        logger.info(f"Using default selector model from config: {selector_model}")
+    else:
+        logger.info(f"Using specified selector model: {selector_model}")
+
+    if summarizer_model is None:
+        summarizer_model = model_config.get_summarizer_model()
+        logger.info(f"Using default summarizer model from config: {summarizer_model}")
+    else:
+        logger.info(f"Using specified summarizer model: {summarizer_model}")
+
     # Use current date if not provided
     if today_date is None:
         today_date = datetime.now().strftime("%b %d, %Y")
@@ -461,10 +498,8 @@ def report_writing(input_filename,
                 "select_quota": 12, # search agent select quota
                 "selector_max_workers": 8, # selector parallel
                 "summarizier_max_workers": 8, # summarizer parallel
-                "selector_model": "gpt-4o-mini",
-                # "selector_model": "gemini-2.0-flash",
-                "summarizer_model": "gpt-4o-mini",
-                # "summarizer_model": "gemini-2.0-flash",
+                "selector_model": selector_model,  # From config or parameter
+                "summarizer_model": summarizer_model,  # From config or parameter
             },
             "search_merge": {
                 "prompt_version": "MergeSearchResultVFinal", # search merge prompt
@@ -589,13 +624,23 @@ def define_args():
     parser.add_argument("--filename", type=str, required=True)
     parser.add_argument("--mode", type=str, choices=["story", "report"], required=True)
     parser.add_argument("--output-filename", type=str, required=True)
-    parser.add_argument("--model", type=str, required=True)
+
+    # Model configuration arguments
+    parser.add_argument("--model", type=str, default=None,
+                       help="Main model to use. If not specified, uses default from model_config.yaml")
+    parser.add_argument("--preset", type=str, default=None,
+                       help="Use a predefined model preset (premium, balanced, economy, gemini, claude)")
+    parser.add_argument("--selector-model", type=str, default=None,
+                       help="Model for selecting search results (report mode only)")
+    parser.add_argument("--summarizer-model", type=str, default=None,
+                       help="Model for summarizing search results (report mode only)")
+
     parser.add_argument("--length", type=int)
     parser.add_argument("--engine-backend", type=str)
     parser.add_argument("--nodes-json-file", type=str, help="Path to save nodes.json for real-time visualization")
     current_date = datetime.now().strftime("%b %d, %Y")  # Format: "Apr 1, 2025"
     parser.add_argument("--today-date", type=str, default=current_date, help="Today's date to use in prompts (default: current date)")
-    
+
     parser.add_argument("--start", type=int, default=None)
     parser.add_argument("--end", type=int, default=None)
     parser.add_argument("--done-flag-file", type=str, default=None)
@@ -607,6 +652,15 @@ def define_args():
 if __name__ == "__main__":
     parser = define_args()
     args = parser.parse_args()
+
+    # Apply preset if specified
+    if args.preset:
+        model_config = get_model_config_loader()
+        if model_config.apply_preset(args.preset):
+            logger.info(f"Applied preset: {args.preset}")
+        else:
+            logger.warning(f"Preset '{args.preset}' not found. Using defaults or specified models.")
+
     if args.mode == "story":
         story_writing(args.filename, args.output_filename,
                       args.start, args.end, args.done_flag_file, args.model,
@@ -614,4 +668,5 @@ if __name__ == "__main__":
     else:
         report_writing(args.filename, args.output_filename,
                        args.start, args.end, args.done_flag_file, args.model, args.engine_backend,
-                       nodes_json_file=args.nodes_json_file, today_date=args.today_date)
+                       nodes_json_file=args.nodes_json_file, today_date=args.today_date,
+                       selector_model=args.selector_model, summarizer_model=args.summarizer_model)

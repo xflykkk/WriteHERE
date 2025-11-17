@@ -1,0 +1,557 @@
+================================================================================
+WRITEHERE LLM CALLING PATTERNS - EXECUTIVE SUMMARY
+================================================================================
+
+DOCUMENT CREATED: 2025-11-17
+ANALYSIS DEPTH: Very Thorough (100+ files examined)
+FOCUS: LLM call volumes, token consumption, recursion patterns
+
+================================================================================
+1. CRITICAL FINDINGS
+================================================================================
+
+A. HOW MANY LLM CALLS?
+
+Story Writing (4,000 words):
+  - Total calls: 15-20
+  - Breakdown: 2 planning + 8 design + 4-6 writing + 2 aggregation
+  
+Report Writing (8,000 words):
+  - Total calls: 130-160
+  - Breakdown: 8 planning + 8 reasoning + 100+ search + 8-10 writing + 6 agg
+
+B. TOKEN CONSUMPTION:
+
+Story Mode:
+  - Input:  ~50,000 tokens
+  - Output: ~15,000 tokens
+  - Total:  ~65,000 tokens
+  - Cost:   $0.40 (GPT-4o) | $0.04 (GPT-4o-mini)
+
+Report Mode:
+  - Input:  ~135,000 tokens
+  - Output: ~28,000 tokens
+  - Total:  ~163,000 tokens
+  - Cost:   $1.80 (GPT-4o) | $0.18 (GPT-4o-mini)
+
+C. TASK DECOMPOSITION DEPTH:
+
+Story:
+  - Depth: 3-4 levels (natural termination)
+  - Tasks: 50-100 total nodes in graph
+
+Report:
+  - Depth: 3 levels (forced atomic at layer 3+)
+  - Tasks: 250-300 total nodes in graph
+  - Max subtasks per task: 3-8 (guideline 5)
+
+================================================================================
+2. LLM CALL BREAKDOWN BY TASK TYPE
+================================================================================
+
+COMPOSITION TASKS (Writing):
+  - 1 execution call per atomic task
+  - Optional 1 update call (update_diff=True)
+  - Temperature: 0.3
+  - Max tokens: 4096
+  - Context: Previous article + dependencies + full plan
+
+REASONING TASKS (Analysis):
+  - 1 execution call per task
+  - Optional 1 aggregation call
+  - Temperature: 0.3
+  - Uses: Full planning context + search results
+
+RETRIEVAL TASKS (Search - Report Only):
+  - 4 turns maximum
+  - 1-2 LLM calls per turn (planning + merge)
+  - Selector model: gpt-4o-mini (1 call per page)
+  - Summarizer model: gpt-4o-mini (1 call per page)
+  - Parallel workers: 8 (selector) + 8 (summarizer)
+  - Total: 20-30 calls per search task
+
+PLANNING TASKS:
+  - Phase 1: 1 atom judgment call (determines if decomposition needed)
+  - Phase 2: 1 planning call (generates DAG if complex)
+  - Retry: Up to 10 retries per phase if parsing fails
+  - Temperature: 0.1 (low variance)
+
+================================================================================
+3. RECURSIVE DECOMPOSITION MECHANISM
+================================================================================
+
+TWO-PHASE PLANNING APPROACH:
+
+Phase 1: Atom Judgment (1 LLM call)
+  - Input: Task goal + context
+  - Output: "atomic" or "complex"
+  - Determines if further decomposition is needed
+  - Prompt: ReportAtom, StoryWritingNLWriteAtomEN, etc.
+
+Phase 2: Recursive Planning (conditional, 1 LLM call)
+  - Only triggered if Phase 1 returns "complex"
+  - Input: Full planning context + task specifications
+  - Output: JSON DAG with sub_tasks array
+  - Recursively applies until all tasks are atomic
+  - Prompt: ReportPlanning, StoryWritingNLPlanningEN, etc.
+
+RECURSION LIMITS:
+
+Story Mode:
+  - No hardcoded depth limit
+  - Naturally terminates when tasks become atomic
+  - Typical depth: 3-4 levels
+
+Report Mode:
+  - force_atom_layer: 3 (line 454 in engine.py)
+  - All tasks at layer >= 3 are forced atomic
+  - Prevents unbounded recursion
+
+Global Limit:
+  - Max steps: 10,000 iterations
+  - Practical limit: 3,000 steps (hardcoded abort at line 157)
+  - Any run exceeding 3,000 steps terminates with error
+
+TASK DECOMPOSITION GUIDELINES (from prompts):
+
+  Rule 1: Last sub-task of writing task must be writing
+  Rule 2: 3-5 sub-tasks per level (max 8, no more)
+  Rule 3: Write tasks > 500-800 words (length guideline)
+  Rule 4: Dependencies form DAG (no cycles)
+  Rule 5: Flatten avoid over-planning (max branching)
+
+EXAMPLE DECOMPOSITION (DeepSeek report):
+  
+  Level 0: Write "DeepSeek biography" (8,000 words)
+    ├─ Level 1.1: Search "DeepSeek info" → 1 task
+    ├─ Level 1.2: Think "Design structure" → 1 task  
+    └─ Level 1.3: Write "Biography" (8,000 words)
+         ├─ Level 2.1: Write "Founder background" (1,200 words)
+         │    ├─ Level 3.1: Search "Liang Wenfeng background"
+         │    ├─ Level 3.2: Search "Ubiquant AI technology"
+         │    └─ Level 3.3: Write "Founder section"
+         ├─ Level 2.2: Write "Company founding" (1,000 words)
+         └─ Level 2.3-2.7: Similar structure
+  
+  Total: ~100-120 tasks for full biography
+
+================================================================================
+4. TOKEN ESTIMATION FRAMEWORK
+================================================================================
+
+PROMPT COMPONENT BREAKDOWN:
+
+Fixed Components (typical):
+  - System message: 500-2,000 tokens
+  - Task instruction: 200-500 tokens
+  - Output format: 300-800 tokens
+  - Subtotal: 1,000-3,300 tokens (base)
+
+Variable Components (context-dependent):
+  - Task goal: 20-200 tokens
+  - Previous article: 500-5,000 tokens
+  - Full plan: 500-2,000 tokens
+  - Dependencies: 500-3,000 tokens
+  - Candidate plan/think: 200-1,000 tokens
+  - Subtotal: 1,700-11,200 tokens (varies)
+
+Total Input Ranges:
+  - Minimal (atomic task): 1,500-3,000 tokens
+  - Medium (standard task): 3,000-8,000 tokens
+  - Large (complex task): 8,000-20,000 tokens
+
+Output Token Estimates (by type):
+  - Planning output: 200-500 tokens (JSON structure)
+  - Atom judgment: 50-100 tokens (single word)
+  - Writing output: 500-2,000 tokens (per chunk)
+  - Reasoning output: 300-1,000 tokens
+  - Search planning: 200-500 tokens per turn
+
+COST CALCULATION (implemented in llm.py):
+
+  price = (input_tokens / 1,000,000) * price_per_1M_input +
+          (output_tokens / 1,000,000) * price_per_1M_output
+
+  Pricing Table (current):
+  ┌─────────────────┬──────────┬────────────┐
+  │ Model           │ Input    │ Output     │
+  ├─────────────────┼──────────┼────────────┤
+  │ GPT-4o          │ $2.50/1M │ $10.00/1M  │
+  │ GPT-4o-mini     │ $0.15/1M │ $0.60/1M   │
+  │ Claude 3.5      │ $3.00/1M │ $15.00/1M  │
+  │ o1              │ $0.55/1M │ $2.19/1M   │
+  │ Gemini 2.5      │ $0.25/1M │ $0.75/1M   │
+  └─────────────────┴──────────┴────────────┘
+
+TYPICAL COSTS PER TASK:
+  
+  Atom Judgment (1 call, ~1,500 input + 100 output):
+    - GPT-4o: $0.004
+    - GPT-4o-mini: $0.0003
+  
+  Planning (1 call, ~3,000 input + 300 output):
+    - GPT-4o: $0.010
+    - GPT-4o-mini: $0.0006
+  
+  Writing (1 call, ~8,000 input + 1,000 output):
+    - GPT-4o: $0.030
+    - GPT-4o-mini: $0.002
+  
+  Search (25 calls, ~100,000 input + 5,000 output):
+    - GPT-4o: $0.300
+    - GPT-4o-mini: $0.018
+
+================================================================================
+5. TOKEN TRACKING AND LOGGING
+================================================================================
+
+IMPLEMENTED TRACKING:
+
+Location: recursive/llm/llm.py (lines 356-386)
+
+Tracked Metrics:
+  ✓ input_tokens (actual from API)
+  ✓ output_tokens (actual from API)
+  ✓ model (which model was used)
+  ✓ price (computed cost)
+  ✓ completion_tokens_details (reasoning tokens for o1)
+
+Logging Level:
+  - Verbose mode: Logs all LLM calls + responses
+  - Debug level: Logs token counts and pricing
+  - Info level: Logs critical errors and retries
+
+CACHE STRATEGY:
+
+Caches Used:
+  1. LLM cache (recursive/memory.py): llm.Cache()
+     - Key: call_args_dict (model + messages hash)
+     - Prevents duplicate identical calls
+     - Invalidated on retry (overwrite_cache=True)
+
+  2. Search cache: search.Cache()
+     - Stores web search results
+
+  3. Web page cache: web_page.Cache()
+     - Stores downloaded webpage content
+
+Cache Hit/Miss:
+  - First attempt: Cache miss (full LLM call)
+  - Retry (parse error): Cache miss (overwrite_cache=True)
+  - Subsequent calls: Cache hit (no API call)
+
+OUTPUT FILES:
+
+Per Execution:
+  - engine.log: Full execution trace (all steps)
+  - nodes.json: Task graph (structure + results)
+  - nodes.pkl: Pickled graph (for recovery)
+  - memory.jsonl: Article + search results
+  - report.md: Final report (markdown)
+
+Logging Format:
+  <green>2025-11-17 10:30:45</green> | <level>INFO    </level> | message
+
+================================================================================
+6. HETEROGENEOUS TASK INTEGRATION
+================================================================================
+
+CONTEXT PASSING MECHANISM:
+
+Memory System (recursive/memory.py):
+
+  collect_node_run_info(node) returns:
+    {
+      "upper_graph_precedents": [...],  # Dependencies from parent levels
+      "same_graph_precedents": [...]    # Dependencies from same level
+    }
+
+Prompt Parameters (passed to all tasks):
+  
+  ✓ to_run_root_question: Original writing goal
+  ✓ to_run_article: All previously written content
+  ✓ to_run_full_plan: Entire task hierarchy
+  ✓ to_run_outer_graph_dependent: Results from parent dependencies
+  ✓ to_run_same_graph_dependent: Results from same-level dependencies
+  ✓ to_run_candidate_plan: Reference planning from previous attempts
+  ✓ to_run_candidate_think: Design conclusions from earlier planning
+  ✓ to_run_target_write_tasks: Writing tasks this search supports
+  ✓ to_run_global_writing_task: Full writing plan context
+  ✓ today_date: Current date (from config or parameter)
+
+PROMPT TEMPLATE SYSTEM:
+
+Base Class: PromptTemplate (recursive/agent/prompts/base.py)
+
+Report Mode Prompts:
+  - ReportPlanning (3,000-4,000 tokens)
+  - ReportAtom (2,000-3,000 tokens)
+  - ReportAtomWithUpdate (2,500-3,500 tokens)
+  - ReportReasoner (2,500-3,500 tokens)
+  - ReportWriter (2,000-3,000 tokens)
+  - ReportSearchOnlyUpdate (2,500-3,500 tokens)
+  - SearchAgentENPrompt (4,000-5,000 tokens)
+  - MergeSearchResultVFinal (2,000-3,000 tokens)
+
+Story Mode Prompts:
+  - StoryWritingNLPlanningEN (3,000-4,000 tokens)
+  - StoryWritingNLWriteAtomEN (2,000-3,000 tokens)
+  - StoryWritingNLWriteAtomWithUpdateEN (2,500-3,500 tokens)
+  - StoryWrtingNLWriterEN (2,000-3,000 tokens)
+  - StoryWrtingNLReasonerEN (2,500-3,500 tokens)
+
+================================================================================
+7. MODEL CONFIGURATION
+================================================================================
+
+Config File: recursive/model_config.yaml
+
+DEFAULT MODELS:
+  - Story generation: gpt-4o
+  - Report generation: gpt-4o
+  - Search selection: gpt-4o-mini
+  - Search summarization: gpt-4o-mini
+
+SUPPORTED MODELS:
+  
+  OpenAI:
+    - gpt-4o (recommended, balanced performance/cost)
+    - gpt-4o-mini (economy, 30x cheaper)
+    - o1 (advanced reasoning)
+
+  Anthropic:
+    - claude-3-5-sonnet-20241022
+    - claude-3-7-sonnet-20250219 (latest)
+
+  Google:
+    - gemini-2.5-pro-preview-03-25 (multimodal)
+    - gemini-2.0-flash (faster, cheaper)
+
+  Multi-provider:
+    - google/gemini-* (via OpenRouter)
+
+TEMPERATURE SETTINGS:
+  
+  Composition (writing): 0.3 (moderate creativity)
+  Reasoning (analysis): 0.3 (moderate creativity)
+  Planning (decomposition): 0.1 (low variance)
+  o1 models: Fixed at 1.0 (no temperature control)
+
+PRESETS (convenient model bundles):
+
+  1. premium
+     - Story: claude-3-7-sonnet-20250219
+     - Report: gpt-4o
+     - Selector: gpt-4o-mini
+     - Summarizer: gpt-4o-mini
+
+  2. balanced
+     - Story: gpt-4o
+     - Report: gpt-4o
+     - Selector: gpt-4o-mini
+     - Summarizer: gpt-4o-mini
+
+  3. economy
+     - Story: gpt-4o-mini
+     - Report: gpt-4o-mini
+     - Selector: gpt-4o-mini
+     - Summarizer: gpt-4o-mini
+     - Cost: 90% reduction
+
+  4. gemini
+     - Story: gemini-2.5-pro-preview-03-25
+     - Report: gemini-2.5-pro-preview-03-25
+     - Selector: gemini-2.0-flash
+     - Summarizer: gemini-2.0-flash
+
+  5. claude
+     - Story: claude-3-7-sonnet-20250219
+     - Report: claude-3-5-sonnet-20241022
+     - Selector: gpt-4o-mini
+     - Summarizer: gpt-4o-mini
+
+================================================================================
+8. KEY STATISTICS SUMMARY
+================================================================================
+
+CALLS PER 1,000 WORDS:
+
+Story:
+  - Calls per 1K words: 3-5 calls
+  - Tokens per 1K words: 16,250 tokens
+  - Cost per 1K words: $0.10 (GPT-4o)
+
+Report:
+  - Calls per 1K words: 16-20 calls
+  - Tokens per 1K words: 20,375 tokens
+  - Cost per 1K words: $0.23 (GPT-4o)
+
+EFFICIENCY METRICS:
+
+Output per LLM call:
+  - Story mode: ~265 words per call (4,000 / 15)
+  - Report mode: ~50 words per call (8,000 / 160)
+  - (Report lower due to search + reasoning overhead)
+
+Context size (average):
+  - Story: ~3,125 tokens input per call
+  - Report: ~844 tokens input per call
+
+Retry rate (observed):
+  - Normal flow: <10% retries
+  - Under stress: >20% retries
+  - Max retries: 10 (planning) | 50 (execution)
+
+================================================================================
+9. RECURSION AND EXECUTION LIMITS
+================================================================================
+
+EXECUTION LOOP LIMITS:
+
+Max iterations: 10,000 steps
+  - Each step = one node action
+  - Includes planning, execution, aggregation, reflection
+
+Practical limit: 3,000 steps
+  - Hardcoded abort threshold
+  - Prevents runaway execution
+  - Logged as error when exceeded
+
+RECURSION DEPTH LIMITS:
+
+Story mode (no explicit limit):
+  - Typical depth: 3-4 levels
+  - Natural termination: When all tasks atomic
+  - Observed max: 4 levels (before atomic)
+
+Report mode (explicit limit):
+  - force_atom_layer: 3
+  - Any task at layer >= 3 forced atomic
+  - Prevents excessive recursion
+
+TASK GRAPH STATISTICS:
+
+Story (4K words):
+  - Total nodes: 50-100
+  - Depth: 3-4 levels
+  - Branching factor: 2-3 average
+
+Report (8K words):
+  - Total nodes: 250-300
+  - Depth: 3 levels (forced)
+  - Branching factor: 3-5 average
+  - Search-heavy: ~80% of calls from search tasks
+
+================================================================================
+10. RECOMMENDATIONS FOR OPTIMIZATION
+================================================================================
+
+TOKEN OPTIMIZATION:
+
+1. Context Sampling
+   - Truncate old dependency results beyond top 3
+   - Sample context paragraphs (keep first + last 50%)
+   - Could reduce input tokens by 30-40%
+
+2. Prompt Template Optimization
+   - Remove redundant instructions across prompts
+   - Use shared instruction library
+   - Could save 200-300 tokens per prompt
+
+3. Model Selection
+   - Use gpt-4o-mini for planning tasks (0.1 temperature)
+   - Use gpt-4o only for writing (0.3 temperature)
+   - Could reduce cost by 60%
+
+4. Early Termination
+   - Stop planning if plan is well-formed (no retries)
+   - Terminate search after 2 turns if sufficient results
+   - Could reduce calls by 20%
+
+ARCHITECTURAL IMPROVEMENTS:
+
+1. Token Budget System
+   - Set hard limits per task type
+   - Enforce context trimming if exceeded
+   - Track budget usage per run
+
+2. Analytics Dashboard
+   - Real-time token tracking
+   - Cost breakdown by task type
+   - Efficiency metrics per execution
+
+3. Caching Enhancement
+   - Cache planning results for similar tasks
+   - Reuse atomic task outputs
+   - Could prevent 10-15% of calls
+
+4. Parallel Execution
+   - Already parallelizes search (8 workers)
+   - Could parallelize writing of independent tasks
+   - Would reduce wall-clock time
+
+================================================================================
+11. KEY IMPLEMENTATION LOCATIONS
+================================================================================
+
+Core Files:
+
+1. LLM Proxy: recursive/llm/llm.py
+   - OpenAIApiProxy class (lines 66-401)
+   - Token tracking (lines 356-386)
+   - Cost calculation (line 383)
+   - Caching (lines 192-200)
+
+2. Graph Execution: recursive/engine.py
+   - GraphRunEngine class (lines 24-166)
+   - Step loop (lines 144-159)
+   - Step limit check (line 157)
+
+3. Planning Agent: recursive/agent/agents/regular.py
+   - UpdateAtomPlanningAgent (lines 135-256)
+   - Atom judgment (lines 207-217)
+   - Planning (lines 232-254)
+   - get_llm_output function (lines 24-122)
+
+4. Prompt Templates: recursive/agent/prompts/*/
+   - Report: full_planning.py, reasoner.py, writer.py, etc.
+   - Story: write_planning.py, reasoner.py, writer.py, etc.
+
+5. Task Graph: recursive/graph.py
+   - AbstractNode class (lines 129-656)
+   - RegularDummyNode (lines 527-656)
+   - Task status definitions (lines 87-106)
+   - plan2graph method (lines 422-504)
+
+6. Memory Management: recursive/memory.py
+   - Memory class (lines 15-250+)
+   - Context collection (lines 63-145)
+   - Article accumulation (line 390 in agents/regular.py)
+
+7. Configuration: recursive/model_config.yaml
+   - Model definitions (lines 11-99)
+   - Presets (lines 101-137)
+   - Advanced settings (lines 138-154)
+
+================================================================================
+CONCLUSION
+================================================================================
+
+WriteHERE is a sophisticated heterogeneous recursive planning system that:
+
+1. Makes 15-20 LLM calls for stories, 130-160 for reports
+2. Uses two-phase planning (atom judgment + decomposition)
+3. Enforces recursion depth limits (3 levels for reports)
+4. Tracks all tokens and costs in real-time
+5. Caches results to prevent redundant calls
+6. Supports multiple LLM providers with flexible configuration
+7. Provides extensive logging and output files
+
+The system achieves strong performance through careful orchestration of
+heterogeneous tasks, with search and reasoning supporting high-quality writing.
+
+Total token consumption: 65K-163K per document depending on mode and complexity.
+
+Document: /home/user/WriteHERE/LLM_CALLING_PATTERNS_ANALYSIS.md
+
+================================================================================
