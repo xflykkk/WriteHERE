@@ -80,9 +80,11 @@ WriteHERE now supports flexible model configuration through `model_config.yaml`.
 - Set default models for story and report generation
 - Configure selector and summarizer models for report mode
 - Use predefined presets (premium, balanced, economy, gemini, claude)
+- **NEW: Use LiteLLM for 100+ LLMs** including local models (Ollama, vLLM), custom endpoints, and more
 - Or continue to specify models via command line
 
-See [MODEL_CONFIG.md](MODEL_CONFIG.md) for detailed configuration guide.
+See [MODEL_CONFIG.md](MODEL_CONFIG.md) for model configuration guide.
+See [LITELLM_SETUP.md](LITELLM_SETUP.md) for LiteLLM integration guide.
 
 3. **Run the engine**:
 

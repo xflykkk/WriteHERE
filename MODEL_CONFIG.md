@@ -2,6 +2,8 @@
 
 WriteHERE now supports flexible model configuration through a YAML configuration file, making it easy to manage multiple models and switch between different setups.
 
+**✨ NEW: LiteLLM Support** - WriteHERE now supports LiteLLM, allowing you to use 100+ LLMs including local models, custom endpoints, and more. See [LITELLM_SETUP.md](LITELLM_SETUP.md) for details.
+
 ## Quick Start
 
 ### 1. Configure Your Models
@@ -250,3 +252,69 @@ Then use it:
 ```bash
 python engine.py --filename input.jsonl --output-filename output.jsonl --preset my-preset --mode story
 ```
+
+## LiteLLM Support
+
+WriteHERE supports LiteLLM for unified access to 100+ LLMs. You can configure:
+- Global LiteLLM proxy for all models
+- Model-specific base_url and api_key
+- Environment variable references
+- Local models (Ollama, vLLM, etc.)
+- Custom OpenAI-compatible endpoints
+
+### Quick Example: Use LiteLLM Proxy
+
+**Enable global LiteLLM:**
+
+```yaml
+litellm:
+  enabled: true
+  base_url: "http://localhost:4000"
+  api_key: "your-litellm-key"  # Optional
+```
+
+**Use custom endpoint for specific model:**
+
+```yaml
+models:
+  deepseek-chat:
+    provider: "openai"
+    display_name: "DeepSeek Chat"
+    base_url: "https://api.deepseek.com/v1"
+    api_key: "${DEEPSEEK_API_KEY}"  # Environment variable
+    temperature:
+      composition: 0.3
+      reasoning: 0.3
+      planning: 0.1
+    max_tokens: 8192
+```
+
+**Use local Ollama model:**
+
+```yaml
+models:
+  ollama-llama3:
+    provider: "openai"
+    display_name: "Ollama Llama 3"
+    base_url: "http://localhost:11434/v1"
+    api_key: "ollama"
+    temperature:
+      composition: 0.7
+      reasoning: 0.5
+      planning: 0.3
+    max_tokens: 4096
+```
+
+Then run:
+
+```bash
+python engine.py --model ollama-llama3 --mode story --filename input.jsonl --output-filename output.jsonl
+```
+
+### Configuration Priority
+
+1. **Model-specific config** (highest priority)
+2. **Global LiteLLM config** (if enabled)
+3. **Environment variables** (lowest priority)
+
+For complete LiteLLM setup guide, see [LITELLM_SETUP.md](LITELLM_SETUP.md)

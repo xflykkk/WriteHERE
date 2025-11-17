@@ -1,5 +1,6 @@
 # Model Configuration for WriteHERE
 # This file defines model configurations for different tasks
+# Supports LiteLLM for unified API access to multiple LLM providers
 
 # Default models for different modes
 defaults:
@@ -7,6 +8,13 @@ defaults:
   report_model: "gpt-4o"             # Default model for report generation
   selector_model: "gpt-4o-mini"      # Model for selecting relevant search results
   summarizer_model: "gpt-4o-mini"    # Model for summarizing search results
+
+# LiteLLM Configuration (optional)
+# If use_litellm is true, all models will be routed through LiteLLM
+litellm:
+  enabled: false                     # Set to true to enable LiteLLM
+  base_url: null                     # LiteLLM proxy URL (e.g., "http://localhost:4000")
+  api_key: null                      # LiteLLM API key (if required)
 
 # Model definitions with detailed configurations
 models:
@@ -20,6 +28,9 @@ models:
       planning: 0.1       # For planning and atomic tasks
     max_tokens: 4096
     supports_vision: true
+    # Optional: Override base_url and api_key for this specific model
+    # base_url: "https://api.openai.com/v1"
+    # api_key: "your-api-key-here"  # Or use env var reference: "${OPENAI_API_KEY}"
 
   # OpenAI GPT-4o-mini
   gpt-4o-mini:
@@ -151,3 +162,58 @@ advanced:
 
   # Timeout for API calls (seconds)
   timeout: 120
+
+# ============================================================================
+# LiteLLM Usage Examples
+# ============================================================================
+#
+# Example 1: Use LiteLLM proxy for all models
+# --------------------------------------------
+# litellm:
+#   enabled: true
+#   base_url: "http://localhost:4000"  # Your LiteLLM proxy URL
+#   api_key: "sk-1234"                  # Optional: LiteLLM proxy API key
+#
+# Then all model calls will go through LiteLLM proxy
+#
+# Example 2: Use custom OpenAI-compatible endpoint
+# -------------------------------------------------
+# models:
+#   custom-gpt-4:
+#     provider: "openai"
+#     display_name: "Custom GPT-4"
+#     base_url: "https://your-custom-endpoint.com/v1"
+#     api_key: "${CUSTOM_API_KEY}"  # Reference environment variable
+#     temperature:
+#       composition: 0.3
+#       reasoning: 0.3
+#       planning: 0.1
+#     max_tokens: 4096
+#
+# Example 3: Use LiteLLM with specific model
+# -------------------------------------------
+# models:
+#   deepseek-chat:
+#     provider: "litellm"  # Use litellm provider
+#     display_name: "DeepSeek Chat"
+#     base_url: "http://localhost:4000"
+#     api_key: "sk-1234"
+#     temperature:
+#       composition: 0.3
+#       reasoning: 0.3
+#       planning: 0.1
+#     max_tokens: 8192
+#
+# Example 4: Use local LLM via LiteLLM
+# -------------------------------------
+# models:
+#   local-llama:
+#     provider: "openai"  # OpenAI-compatible API
+#     display_name: "Local Llama"
+#     base_url: "http://localhost:8000/v1"
+#     api_key: "not-needed"  # Some local servers don't require API key
+#     temperature:
+#       composition: 0.7
+#       reasoning: 0.5
+#       planning: 0.3
+#     max_tokens: 4096

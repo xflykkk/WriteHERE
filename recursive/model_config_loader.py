@@ -115,7 +115,34 @@ class ModelConfigLoader:
             Dictionary with model configuration
         """
         models = self.config.get('models', {})
-        return models.get(model_name, {})
+        model_config = models.get(model_name, {}).copy()
+
+        # Resolve environment variable references in api_key and base_url
+        if 'api_key' in model_config and isinstance(model_config['api_key'], str):
+            model_config['api_key'] = self._resolve_env_var(model_config['api_key'])
+        if 'base_url' in model_config and isinstance(model_config['base_url'], str):
+            model_config['base_url'] = self._resolve_env_var(model_config['base_url'])
+
+        return model_config
+
+    def _resolve_env_var(self, value: str) -> str:
+        """
+        Resolve environment variable references in format ${VAR_NAME}
+
+        Args:
+            value: String that may contain env var references
+
+        Returns:
+            String with env vars resolved
+        """
+        import re
+        import os
+
+        def replace_env_var(match):
+            var_name = match.group(1)
+            return os.getenv(var_name, match.group(0))
+
+        return re.sub(r'\$\{([^}]+)\}', replace_env_var, value)
 
     def get_temperature(self, model_name: str, task_type: str = "composition") -> float:
         """
@@ -183,6 +210,54 @@ class ModelConfigLoader:
         """Get an advanced configuration setting"""
         advanced = self.config.get('advanced', {})
         return advanced.get(setting_name, default)
+
+    def get_litellm_config(self) -> Dict[str, Any]:
+        """
+        Get LiteLLM configuration
+
+        Returns:
+            Dictionary with LiteLLM settings (enabled, base_url, api_key)
+        """
+        litellm_config = self.config.get('litellm', {}).copy()
+
+        # Resolve environment variable references
+        if 'api_key' in litellm_config and isinstance(litellm_config['api_key'], str):
+            litellm_config['api_key'] = self._resolve_env_var(litellm_config['api_key'])
+        if 'base_url' in litellm_config and isinstance(litellm_config['base_url'], str):
+            litellm_config['base_url'] = self._resolve_env_var(litellm_config['base_url'])
+
+        return litellm_config
+
+    def is_litellm_enabled(self) -> bool:
+        """Check if LiteLLM is globally enabled"""
+        litellm_config = self.config.get('litellm', {})
+        return litellm_config.get('enabled', False)
+
+    def get_model_base_url(self, model_name: str) -> Optional[str]:
+        """
+        Get base_url for a specific model
+
+        Args:
+            model_name: Name of the model
+
+        Returns:
+            base_url string or None
+        """
+        model_config = self.get_model_config(model_name)
+        return model_config.get('base_url')
+
+    def get_model_api_key(self, model_name: str) -> Optional[str]:
+        """
+        Get api_key for a specific model
+
+        Args:
+            model_name: Name of the model
+
+        Returns:
+            api_key string or None
+        """
+        model_config = self.get_model_config(model_name)
+        return model_config.get('api_key')
 
 
 # Singleton instance for global access

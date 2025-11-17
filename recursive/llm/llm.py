@@ -14,6 +14,7 @@ from recursive.memory import caches
 from dotenv import load_dotenv
 import google.generativeai as genai
 from openai import OpenAI
+from typing import Optional, Dict, Any
 
 # Load environment variables from api_key.env if it exists
 load_dotenv(dotenv_path='api_key.env')
@@ -129,7 +130,18 @@ class OpenAIApiProxy():
     def call(self, model, messages, no_cache = False, overwrite_cache=False, tools=None, temperature=None, headers={}, use_official=None, **kwargs):
         assert tools is None
         messages = copy.deepcopy(messages)
-        
+
+        # Load model configuration if available
+        try:
+            from recursive.model_config_loader import get_model_config_loader
+            model_config_loader = get_model_config_loader()
+            model_config = model_config_loader.get_model_config(model)
+            litellm_config = model_config_loader.get_litellm_config()
+        except Exception as e:
+            logger.debug(f"Could not load model config: {e}")
+            model_config = {}
+            litellm_config = {}
+
         # Check if model name includes openrouter model identifier
         if any(provider in model for provider in ["google/", "anthropic/", "meta/", "mistral/"]):
             use_official = "openrouter"
@@ -151,31 +163,54 @@ class OpenAIApiProxy():
         if temperature is not None:
             params_gpt["temperature"] = temperature
 
+        # Determine URL and API key with priority: model_config > litellm_config > environment variables
+        # Priority for base_url: model-specific > global litellm > default provider URL
+        # Priority for api_key: model-specific > global litellm > environment variable
+
+        config_base_url = model_config.get('base_url')
+        config_api_key = model_config.get('api_key')
+
+        # If LiteLLM is globally enabled and no model-specific config, use LiteLLM config
+        if litellm_config.get('enabled') and not config_base_url and not use_official:
+            config_base_url = litellm_config.get('base_url')
+            if not config_api_key:
+                config_api_key = litellm_config.get('api_key')
+            logger.info(f"Using global LiteLLM config: {config_base_url}")
+
         if 'o1' in model:
-            url = ''
-            api_key = ""
+            url = config_base_url if config_base_url else ''
+            api_key = config_api_key if config_api_key else ""
             params_gpt["max_tokens"] = 32768
         elif "gpt" in model:
-            url = "https://api.openai.com/v1/chat/completions"
-            api_key = str(os.getenv('OPENAI'))
+            url = config_base_url if config_base_url else "https://api.openai.com/v1/chat/completions"
+            api_key = config_api_key if config_api_key else str(os.getenv('OPENAI', ''))
         elif "claude" in model:
-            url = 'https://api.anthropic.com/v1/messages'
-            api_key = str(os.getenv('CLAUDE'))
+            url = config_base_url if config_base_url else 'https://api.anthropic.com/v1/messages'
+            api_key = config_api_key if config_api_key else str(os.getenv('CLAUDE', ''))
         elif "deepseek" in model:
-            url = ''
-            api_key = ''
+            url = config_base_url if config_base_url else ''
+            api_key = config_api_key if config_api_key else ''
         elif use_official == "openrouter" or "openrouter" in model:
             # Use OpenRouter API
-            url = "https://openrouter.ai/api/v1/chat/completions"
-            api_key = str(os.getenv('OPENROUTER'))
+            url = config_base_url if config_base_url else "https://openrouter.ai/api/v1/chat/completions"
+            api_key = config_api_key if config_api_key else str(os.getenv('OPENROUTER', ''))
             # Add HTTP-Referer and X-Title headers for OpenRouter
             headers['HTTP-Referer'] = os.getenv('OPENROUTER_REFERER', '')
             headers['X-Title'] = os.getenv('OPENROUTER_TITLE', '')
         elif "gemini" in model:
             # For Gemini, we'll use the Google API directly, not REST API
-            api_key = str(os.getenv('GEMINI'))
+            api_key = config_api_key if config_api_key else str(os.getenv('GEMINI', ''))
             genai.configure(api_key=api_key)
             url = None  # Not used for Gemini
+        else:
+            # Generic fallback: use config or try environment
+            url = config_base_url if config_base_url else "https://api.openai.com/v1/chat/completions"
+            api_key = config_api_key if config_api_key else str(os.getenv('OPENAI', ''))
+
+        # Log configuration being used (without exposing full API key)
+        if config_base_url or config_api_key:
+            masked_key = api_key[:8] + "..." if api_key and len(api_key) > 8 else "***"
+            logger.info(f"Using model config for {model}: url={url}, api_key={masked_key}")
 
         if "o1" in model:
             if "temperature" in params_gpt:
