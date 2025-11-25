@@ -33,17 +33,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import InfoIcon from '@mui/icons-material/Info';
-import { generateReport, pingAPI } from '../utils/api';
+import { generateReport, pingAPI, fetchModels } from '../utils/api';
 import HistoryPanel from '../components/HistoryPanel';
-
-// Recommended model options
-const commonModels = [
-  { label: 'Claude 3.7 Sonnet (Recommended)', value: 'claude-3-7-sonnet-20250219' },
-  { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-  { label: 'GPT-4o', value: 'gpt-4o' },
-  { label: 'Gemini 2.5 Pro Exp', value: 'gemini-2.5-pro-exp-03-25' },
-  { label: 'Gemini 2.5 Pro Preview', value: 'gemini-2.5-pro-preview-03-25' },
-];
 
 // Example prompts for report generation
 const examplePrompts = [
@@ -54,7 +45,9 @@ const examplePrompts = [
 
 const ReportGenerationPage = () => {
   const [prompt, setPrompt] = useState('');
-  const [model, setModel] = useState('claude-3-5-sonnet-20241022');
+  const [model, setModel] = useState('');
+  const [availableModels, setAvailableModels] = useState([]);
+  const [modelDefaults, setModelDefaults] = useState({});
   const [searchEngine, setSearchEngine] = useState('google');
   const [enableSearch, setEnableSearch] = useState(true);
   const [apiKeys, setApiKeys] = useState({
@@ -89,18 +82,39 @@ const ReportGenerationPage = () => {
     }));
   };
 
-  // Check if API is available on component mount
+  // Fetch available models on component mount
   useEffect(() => {
-    async function checkAPIConnection() {
+    async function loadModels() {
       try {
-        await pingAPI();
-        // API is available, nothing to do
+        await pingAPI(); // Check connection first
+        const data = await fetchModels();
+        if (data.status === 'ok' && data.models) {
+          setAvailableModels(data.models);
+          setModelDefaults(data.defaults || {});
+          // Set default model for report generation
+          const defaultModel = data.defaults?.report_model || (data.models.length > 0 ? data.models[0].value : '');
+          setModel(defaultModel);
+        } else {
+          // Fallback to basic models if config not available
+          setAvailableModels([
+            { value: 'gpt-4o', label: 'GPT-4o', provider: 'openai' },
+            { value: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openai' }
+          ]);
+          setModel('gpt-4o');
+        }
       } catch (err) {
+        console.error('Error loading models:', err);
         setError('Cannot connect to the backend server. Please make sure it is running at http://localhost:' + (process.env.REACT_APP_BACKEND_PORT || '5001') + '.');
+        // Set fallback models
+        setAvailableModels([
+          { value: 'gpt-4o', label: 'GPT-4o', provider: 'openai' },
+          { value: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openai' }
+        ]);
+        setModel('gpt-4o');
       }
     }
-    
-    checkAPIConnection();
+
+    loadModels();
   }, []);
 
   const handleSubmit = async (e) => {
@@ -244,7 +258,7 @@ const ReportGenerationPage = () => {
             <Grid item xs={12} md={4}>
               <Autocomplete
                 freeSolo
-                options={commonModels}
+                options={availableModels}
                 getOptionLabel={(option) => {
                   if (typeof option === 'string') {
                     return option;

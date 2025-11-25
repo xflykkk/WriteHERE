@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 import os
+import sys
 import json
 import subprocess
 import uuid
@@ -14,6 +15,10 @@ import signal
 import argparse
 from pathlib import Path
 from datetime import datetime
+
+# Add recursive directory to path for importing model_config_loader
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../recursive'))
+from model_config_loader import get_model_config_loader
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Backend server for WriteHERE application')
@@ -924,6 +929,52 @@ def api_ping():
         "message": "API server is running",
         "version": "1.0.0"
     })
+
+@app.route('/api/models', methods=['GET'])
+def api_get_models():
+    """Get available models from model_config.yaml"""
+    try:
+        # Get the model config loader
+        config_loader = get_model_config_loader()
+
+        # Get all available models
+        model_names = config_loader.list_available_models()
+
+        # Build model list with display names
+        models = []
+        for model_name in model_names:
+            model_config = config_loader.get_model_config(model_name)
+            models.append({
+                "value": model_name,
+                "label": model_config.get("display_name", model_name),
+                "provider": model_config.get("provider", "unknown")
+            })
+
+        # Get presets
+        presets = config_loader.list_available_presets()
+
+        # Get defaults
+        defaults = config_loader.config.get('defaults', {})
+
+        return jsonify({
+            "status": "ok",
+            "models": models,
+            "presets": presets,
+            "defaults": defaults
+        })
+    except Exception as e:
+        print(f"Error loading models: {str(e)}")
+        # Return fallback models if config can't be loaded
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "models": [
+                {"value": "gpt-4o", "label": "GPT-4o", "provider": "openai"},
+                {"value": "gpt-4o-mini", "label": "GPT-4o Mini", "provider": "openai"}
+            ],
+            "presets": [],
+            "defaults": {"story_model": "gpt-4o", "report_model": "gpt-4o"}
+        }), 500
 
 def monitor_task_progress(task_id, nodes_dir):
     """

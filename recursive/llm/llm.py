@@ -18,6 +18,12 @@ from openai import OpenAI
 # Load environment variables from api_key.env if it exists
 load_dotenv(dotenv_path='api_key.env')
 
+# Import model_config_loader for LiteLLM support
+try:
+    from recursive.model_config_loader import get_model_config_loader
+except ImportError:
+    get_model_config_loader = None
+
 # Also check for temporary environment files passed from the frontend
 import os
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -85,7 +91,8 @@ class OpenAIApiProxy():
         api_key = ''
         headers = {}
         headers['Content-Type'] = headers['Content-Type'] if 'Content-Type' in headers else 'application/json'
-        headers['Authorization'] = "Bearer " + api_key
+        if api_key and api_key != 'None':
+            headers['Authorization'] = "Bearer " + api_key
         url = url + '/v1/embeddings'
         params_gpt = {
             "model": model,
@@ -151,38 +158,62 @@ class OpenAIApiProxy():
         if temperature is not None:
             params_gpt["temperature"] = temperature
 
-        if 'o1' in model:
-            url = ''
-            api_key = ""
-            params_gpt["max_tokens"] = 32768
-        elif "gpt" in model:
-            url = "https://api.openai.com/v1/chat/completions"
-            api_key = str(os.getenv('OPENAI'))
-        elif "claude" in model:
-            url = 'https://api.anthropic.com/v1/messages'
-            api_key = str(os.getenv('CLAUDE'))
-        elif "deepseek" in model:
-            url = ''
-            api_key = ''
-        elif use_official == "openrouter" or "openrouter" in model:
-            # Use OpenRouter API
-            url = "https://openrouter.ai/api/v1/chat/completions"
-            api_key = str(os.getenv('OPENROUTER'))
-            # Add HTTP-Referer and X-Title headers for OpenRouter
-            headers['HTTP-Referer'] = os.getenv('OPENROUTER_REFERER', '')
-            headers['X-Title'] = os.getenv('OPENROUTER_TITLE', '')
-        elif "gemini" in model:
-            # For Gemini, we'll use the Google API directly, not REST API
-            api_key = str(os.getenv('GEMINI'))
-            genai.configure(api_key=api_key)
-            url = None  # Not used for Gemini
+        # First, try to load model config from model_config.yaml
+        model_config_loaded = False
+        if get_model_config_loader is not None:
+            try:
+                config_loader = get_model_config_loader()
+                if model in config_loader.list_available_models():
+                    model_cfg = config_loader.get_model_config(model)
+                    provider = model_cfg.get('provider', '')
+
+                    # Set URL and API key from config
+                    if provider == 'litellm' or model_cfg.get('base_url'):
+                        url = model_cfg.get('base_url', '') + '/chat/completions'
+                        api_key = model_cfg.get('api_key', '')
+                        model_config_loaded = True
+                        logger.info(f"Loaded config for model {model} from model_config.yaml")
+            except Exception as e:
+                logger.warning(f"Failed to load model config for {model}: {e}")
+
+        # Fallback to environment variables for known model types
+        if not model_config_loaded:
+            if 'o1' in model:
+                url = ''
+                api_key = ""
+                params_gpt["max_tokens"] = 32768
+            elif "gpt" in model:
+                url = "https://api.openai.com/v1/chat/completions"
+                api_key = str(os.getenv('OPENAI'))
+            elif "claude" in model:
+                url = 'https://api.anthropic.com/v1/messages'
+                api_key = str(os.getenv('CLAUDE'))
+            elif "deepseek" in model:
+                url = ''
+                api_key = ''
+            elif use_official == "openrouter" or "openrouter" in model:
+                # Use OpenRouter API
+                url = "https://openrouter.ai/api/v1/chat/completions"
+                api_key = str(os.getenv('OPENROUTER'))
+                # Add HTTP-Referer and X-Title headers for OpenRouter
+                headers['HTTP-Referer'] = os.getenv('OPENROUTER_REFERER', '')
+                headers['X-Title'] = os.getenv('OPENROUTER_TITLE', '')
+            elif "gemini" in model:
+                # For Gemini, we'll use the Google API directly, not REST API
+                api_key = str(os.getenv('GEMINI'))
+                genai.configure(api_key=api_key)
+                url = None  # Not used for Gemini
+            else:
+                # Unknown model - raise error
+                raise ValueError(f"Unknown model: {model}. Please add it to model_config.yaml or use a supported model.")
 
         if "o1" in model:
             if "temperature" in params_gpt:
                 del params_gpt["temperature"]
         
         headers['Content-Type'] = headers['Content-Type'] if 'Content-Type' in headers else 'application/json'
-        headers['Authorization'] = "Bearer " + api_key
+        if api_key and api_key != 'None':
+            headers['Authorization'] = "Bearer " + api_key
 
         params_gpt.update(kwargs)
         
@@ -334,7 +365,12 @@ class OpenAIApiProxy():
                         logger.error("Error Process {} with the maximum context length exceeds. Sys messages is {}".format(model, messages[0]))
                         # just return None
                         return None
-    
+
+                    # Don't retry for authentication errors (401) - they won't succeed
+                    if response.status_code == 401:
+                        logger.error(f"Authentication failed for model {model}: {response.text}")
+                        raise RuntimeError(f"Invalid API key for model {model}. Please check your API key configuration.")
+
                     print(f"Received status code {response.status_code} at attempt={attempt + 1}. Retrying..., the response is {response.text}", flush=True)  
                     
             except requests.exceptions.RequestException as e:

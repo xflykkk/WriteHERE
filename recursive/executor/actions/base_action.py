@@ -145,7 +145,8 @@ def tool_api(func: Optional[Callable] = None,
             if doc.kind is DocstringSectionKind.parameters:
                 for d in doc.value:
                     d = d.as_dict()
-                    d['type'] = _detect_type(d["annotation"].lower())
+                    if d.get("annotation"):
+                        d['type'] = _detect_type(d["annotation"].lower())
                     args_doc[d['name']] = d
             if doc.kind is DocstringSectionKind.returns:
                 for d in doc.value:
@@ -163,11 +164,14 @@ def tool_api(func: Optional[Callable] = None,
         for name, param in sig.parameters.items():
             if name == 'self':
                 continue
+            # Skip parameters not documented in docstring
+            if param.name not in args_doc:
+                continue
             parameter = dict(
                 name=param.name,
-                type=args_doc[param.name]["type"],
+                type=args_doc[param.name].get("type", "str"),
                 annotation=args_doc[param.name].get("annotation", ""),
-                description=args_doc[param.name]["description"])
+                description=args_doc[param.name].get("description", ""))
             desc['parameters'].append(parameter)
             if param.default is inspect.Signature.empty:
                 parameter["required"] = True

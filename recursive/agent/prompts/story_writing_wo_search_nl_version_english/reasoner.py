@@ -46,9 +46,18 @@ Attention!! Your design outcome should be logically consistent and coherent with
 - **Narrative techniques**: Tools like foreshadowing, flashbacks, symbolism, and irony
 - **Scene construction**: How individual scenes are built, including transitions between them
 
-# Output Format
-1. First, conduct thinking within `<think></think>`
-2. Then, in `<result></result>`, write the design results in a structured and readable format, providing as much detail as possible.
+# CRITICAL: Output Format
+You MUST use the following exact format:
+
+<think>
+Your thinking process here...
+</think>
+
+<result>
+Your design results here in structured and readable format, providing as much detail as possible...
+</result>
+
+Both tags are REQUIRED. Do not include any text outside these tags.
 
 Please complete the story design task **{to_run_task}** in a reasonable and innovative way, based on the requirements.
 """.strip()
@@ -123,10 +132,18 @@ Attention!! Your design outcome should maintain **logical consistency** and **co
 - **Scene construction**: How individual scenes are built, including transitions between them
 
 
-# Output Format  
-1. First, conduct in-depth thinking within `<think></think>`, considering various possibilities during the thought process. Ensure to review and evaluate the input from all Reasoners, addressing inconsistencies and identifying areas for refinement or enhancement.  
-2. Then, in `<result></result>`, write the **final** design results in a **structured and readable format**
+# CRITICAL: Output Format
+You MUST use the following exact format:
 
+<think>
+Your in-depth thinking process here, considering various possibilities. Review and evaluate input from all Reasoners, addressing inconsistencies and identifying areas for refinement...
+</think>
+
+<result>
+Your final design results here in structured and readable format...
+</result>
+
+Both tags are REQUIRED. Do not include any text outside these tags.
 
 Please complete the story design task **{to_run_task}** in a reasonable and innovative way, based on the requirements.
 """.strip()

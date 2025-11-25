@@ -182,7 +182,7 @@ python server.py
 
 To use a custom port:
 ```bash
-python server.py --port 8080
+python server.py --port 5001
 ```
 
 #### Frontend Setup

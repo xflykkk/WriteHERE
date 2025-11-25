@@ -20,8 +20,18 @@ You are a professional and innovative writer collaborating with other writers to
 - Avoid summarizing, explanatory, or expository content or sentences unless absolutely necessary.
 - Ensure there is no sense of disconnection or abruptness in the plot or descriptions. You may write some transitional content to maintain complete continuity with the existing material.
 
-### Instructions:
-First, reflect on the task in `<think></think>`. Then, proceed with the continuation of the story in `<article></article>`.
+### CRITICAL: Output Format
+You MUST use the following exact format:
+
+<think>
+Your reflection on the task here...
+</think>
+
+<article>
+Your story content here...
+</article>
+
+Both tags are REQUIRED. Do not include any text outside these tags.
 """.strip()
 
         

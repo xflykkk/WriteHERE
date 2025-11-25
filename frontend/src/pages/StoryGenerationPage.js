@@ -31,18 +31,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import InfoIcon from '@mui/icons-material/Info';
-import { generateStory, pingAPI } from '../utils/api';
+import { generateStory, pingAPI, fetchModels } from '../utils/api';
 import HistoryPanel from '../components/HistoryPanel';
-
-// Recommended model options
-const commonModels = [
-  { label: 'Claude 3.7 Sonnet (Recommended)', value: 'claude-3-7-sonnet-20250219' },
-  { label: 'Claude 3.5 Sonnet', value: 'claude-3-5-sonnet-20241022' },
-  { label: 'GPT-4o', value: 'gpt-4o' },
-  { label: 'GPT-4o-mini', value: 'gpt-4o-mini' },
-  { label: 'Gemini 2.5 Pro Exp', value: 'gemini-2.5-pro-exp-03-25' },
-  { label: 'Gemini 2.5 Pro Preview', value: 'gemini-2.5-pro-preview-03-25' },
-];
 
 // Example prompts for story generation
 const examplePrompts = [
@@ -53,7 +43,9 @@ const examplePrompts = [
 
 const StoryGenerationPage = () => {
   const [prompt, setPrompt] = useState('');
-  const [model, setModel] = useState('claude-3-7-sonnet-20250219');
+  const [model, setModel] = useState('');
+  const [availableModels, setAvailableModels] = useState([]);
+  const [modelDefaults, setModelDefaults] = useState({});
   const [apiKeys, setApiKeys] = useState({
     openai: localStorage.getItem('openai_api_key') || '',
     claude: localStorage.getItem('claude_api_key') || '',
@@ -76,18 +68,39 @@ const StoryGenerationPage = () => {
     if (apiKeys.gemini) localStorage.setItem('gemini_api_key', apiKeys.gemini);
   }, [apiKeys]);
 
-  // Check if API is available on component mount
+  // Fetch available models on component mount
   useEffect(() => {
-    async function checkAPIConnection() {
+    async function loadModels() {
       try {
-        await pingAPI();
-        // API is available, nothing to do
+        await pingAPI(); // Check connection first
+        const data = await fetchModels();
+        if (data.status === 'ok' && data.models) {
+          setAvailableModels(data.models);
+          setModelDefaults(data.defaults || {});
+          // Set default model for story generation
+          const defaultModel = data.defaults?.story_model || (data.models.length > 0 ? data.models[0].value : '');
+          setModel(defaultModel);
+        } else {
+          // Fallback to basic models if config not available
+          setAvailableModels([
+            { value: 'gpt-4o', label: 'GPT-4o', provider: 'openai' },
+            { value: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openai' }
+          ]);
+          setModel('gpt-4o');
+        }
       } catch (err) {
+        console.error('Error loading models:', err);
         setError('Cannot connect to the backend server. Please make sure it is running at http://localhost:' + (process.env.REACT_APP_BACKEND_PORT || '5001') + '.');
+        // Set fallback models
+        setAvailableModels([
+          { value: 'gpt-4o', label: 'GPT-4o', provider: 'openai' },
+          { value: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openai' }
+        ]);
+        setModel('gpt-4o');
       }
     }
-    
-    checkAPIConnection();
+
+    loadModels();
   }, []);
 
   const handleSubmit = async (e) => {
@@ -228,7 +241,7 @@ const StoryGenerationPage = () => {
             <Grid item xs={12} md={6}>
               <Autocomplete
                 freeSolo
-                options={commonModels}
+                options={availableModels}
                 getOptionLabel={(option) => {
                   if (typeof option === 'string') {
                     return option;

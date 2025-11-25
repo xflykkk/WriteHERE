@@ -34,6 +34,20 @@ export const pingAPI = async () => {
 };
 
 /**
+ * Fetches available models from model_config.yaml
+ * @returns {Promise} - Promise that resolves with available models, presets, and defaults
+ */
+export const fetchModels = async () => {
+  try {
+    const response = await apiClient.get('/models');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching models:', error);
+    throw error;
+  }
+};
+
+/**
  * Generates a story using the heterogeneous recursive planning engine
  * @param {Object} params - Generation parameters
  * @param {string} params.prompt - The story prompt

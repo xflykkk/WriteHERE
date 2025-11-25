@@ -260,7 +260,12 @@ def story_writing(input_filename,
                 },
             },
             "update": {},
-            "final_aggregate": {},  
+            "final_aggregate": {
+                "llm_args": {
+                    "model": global_use_model,
+                    "temperature": 0.3
+                }
+            },  
         },
         "RETRIEVAL": {
             "all_atom": True
@@ -284,6 +289,10 @@ def story_writing(input_filename,
             "final_aggregate": {
                 "prompt_version": "StoryWritingReasonerFinalAggregate",
                 "mode": "llm",
+                "llm_args": {
+                    "model": global_use_model,
+                    "temperature": 0.3
+                },
                 "parse_arg_dict": {
                     "result": ["result"],
                 },
@@ -465,7 +474,12 @@ def report_writing(input_filename,
                 },
             },
             "update": {},
-            "final_aggregate": {},  
+            "final_aggregate": {
+                "llm_args": {
+                    "model": global_use_model,
+                    "temperature": 0.3
+                }
+            },
         },
         "RETRIEVAL": {
             "execute": {
@@ -521,10 +535,15 @@ def report_writing(input_filename,
                 },
                 "all_atom": True,
                 "only_on_depend": True
-            },            
+            },
             "planning": {},
             "update": {},
-            "final_aggregate": {},  
+            "final_aggregate": {
+                "llm_args": {
+                    "model": global_use_model,
+                    "temperature": 0.3
+                }
+            },
         },
         "REASONING": {
             "execute": {
@@ -541,10 +560,15 @@ def report_writing(input_filename,
             "atom": {
                 # "use_candidate_plan": True
                 "all_atom": True # force to atom
-            },            
+            },
             "planning": {},
             "update": {},
-            "final_aggregate": {},  
+            "final_aggregate": {
+                "llm_args": {
+                    "model": global_use_model,
+                    "temperature": 0.3
+                }
+            },
         },
     }
     config["tag2task_type"] = {v: k for k,v in config["task_type2tag"].items()}
